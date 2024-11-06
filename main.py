@@ -143,12 +143,16 @@ class ExcelMerger(QWidget):
 
                     # 소급액 계산 및 소급 필요 정보 업데이트
                     if upload_month_str == current_month_str:
-                        months_diff = (current_date.year - entry_date.year) * 12 + current_date.month - entry_date.month -1
+                        months_diff = (current_date.year - entry_date.year) * 12 + current_date.month - entry_date.month
+
+                        # 사유가 전입이면 전입 당월은 이전 관할서에서 소급
+                        if row['신규사유'] == '전입':
+                            months_diff -= 1
 
                         # 소급 필요 정보 저장
                         retro_info = f"{months_diff}개월" if months_diff > 0 else ''
+                        return retro_info 
 
-                        return retro_info  # 소급 필요 정보를 별도의 열에 저장
 
                     else:
                         return ('')
