@@ -95,26 +95,6 @@ class ExcelMerger(QWidget):
         for file in selected_files:
             self.add_file(file)
 
-    # 날짜 문자열 정리 함수
-    def clean_date_string(self, date_str):
-        # 날짜 문자열에서 추가 문자열 제거 (예: "-10" 제거)
-        if '-' in date_str:
-            date_str = date_str.split('-')[0]
-        return date_str.strip()
-
-    # 소급액 계산 함수
-    def calculate_retroactive_amount(self, entry_date_str, current_date_str, amount_per_month):
-        try:
-            entry_date_str = self.clean_date_string(entry_date_str)  # 날짜 문자열 정리
-            entry_date = datetime.strptime(entry_date_str, "%Y.%m.%d")
-            current_date = datetime.strptime(current_date_str, "%Y-%m-%d")
-        except ValueError as e:
-            print(f"Date conversion error: {e}")
-            return 0
-
-        months_difference = (current_date.year - entry_date.year) * 12 + current_date.month - entry_date.month
-        return months_difference * amount_per_month
-
     def merge_files(self):
         if not self.files:
             print("파일을 먼저 선택하세요.")
@@ -142,13 +122,9 @@ class ExcelMerger(QWidget):
             else:
                 print(f"{sheet_name} 시트에 병합할 데이터가 없습니다.")
 
-        # "현황" 시트에 "시비", "구비", "소급 필요" 열 추가 및 소급액 계산
+        # "현황" 시트에 "소급 필요" 열 추가 및 소급액 계산
         if '현황' in self.merged_sheets:
             status_data = self.merged_sheets['현황']
-            
-            # 기본값 설정
-            status_data['시비'] = 100000
-            status_data['구비'] = 50000
             status_data['소급 필요'] = ''  # 새로운 열 추가
 
             # 현재 날짜를 가져옵니다
@@ -159,41 +135,29 @@ class ExcelMerger(QWidget):
                 try:
                     # 날짜 문자열 정리 및 변환
                     upload_date_str = row['등록일']
-                    upload_date_str = self.clean_date_string(upload_date_str)  # 날짜 문자열 정리
                     upload_date = datetime.strptime(upload_date_str, "%Y.%m.%d")
                     upload_month_str = upload_date.strftime("%Y-%m")
 
                     entry_date_str = row['전입일']
-                    entry_date_str = self.clean_date_string(entry_date_str)  # 날짜 문자열 정리
                     entry_date = datetime.strptime(entry_date_str, "%Y.%m.%d")
-                    entry_month_str = entry_date.strftime("%Y-%m")
 
                     # 소급액 계산 및 소급 필요 정보 업데이트
                     if upload_month_str == current_month_str:
-                        months_diff = (current_date.year - entry_date.year) * 12 + current_date.month - entry_date.month
-                        retro_amount_sibi = self.calculate_retroactive_amount(entry_date_str, current_date.strftime("%Y-%m-%d"), 100000)
-                        retro_amount_gubi = self.calculate_retroactive_amount(entry_date_str, current_date.strftime("%Y-%m-%d"), 50000)
+                        months_diff = (current_date.year - entry_date.year) * 12 + current_date.month - entry_date.month -1
 
                         # 소급 필요 정보 저장
                         retro_info = f"{months_diff}개월" if months_diff > 0 else ''
 
-                        return (
-                            100000 + retro_amount_sibi,
-                            50000 + retro_amount_gubi,
-                            retro_info  # 소급 필요 정보를 별도의 열에 저장
-                        )
+                        return retro_info  # 소급 필요 정보를 별도의 열에 저장
+
                     else:
-                        return (100000, 50000, '')
+                        return ('')
                 except ValueError as e:
                     print(f"Date conversion error: {e}")
-                    return (100000, 50000, '')
+                    return ('')
 
-            # "시비", "구비" 열 업데이트 및 "소급 필요" 열 설정
-            status_data[['시비', '구비', '소급 필요']] = status_data.apply(lambda row: pd.Series(calculate_amount(row)), axis=1)
-
-            # 금액을 천 단위 구분 쉼표로 포맷팅
-            status_data['시비'] = status_data['시비'].apply(lambda x: "{:,}".format(x))
-            status_data['구비'] = status_data['구비'].apply(lambda x: "{:,}".format(x))
+            # "소급 필요" 열 설정
+            status_data['소급 필요'] = status_data.apply(lambda row: pd.Series(calculate_amount(row)), axis=1)
 
         # 병합 후 파일 선택 UI 제거
         self.clear_initial_ui()
